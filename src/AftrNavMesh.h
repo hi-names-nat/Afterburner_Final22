@@ -1,11 +1,11 @@
 #pragma once
-#include "RecastNav/Recast/Include/Recast.h"
-#include "RecastNav/Detour/Include/DetourCommon.h"
-#include "RecastNav/Detour/Include/DetourNavMeshBuilder.h"
-#include "RecastNav/Detour/Include/DetourNavMeshQuery.h"
-#include "RecastNav/DetourCrowd/Include/DetourCrowd.h"
+#include "Recast.h"
+#include "DetourCommon.h"
+#include "DetourNavMeshBuilder.h"
+#include "DetourNavMeshQuery.h"
+#include "DetourCrowd.h"
 
-#include "RecastNav/Detour/Include/DetourNavMesh.h"
+#include "DetourNavMesh.h"
 
 #include "Model.h"
 

@@ -1,6 +1,4 @@
 #pragma once
-#include "PhysicsManager.h"
-#include "PhysicsManager.h"
 #include "physx/PxPhysicsAPI.h"
 
 using namespace physx;
@@ -10,8 +8,8 @@ namespace Aftr
 	static class PhysicsManager
 	{
 	public:
-		static PxPhysics* physics_;
-		static PxScene* scene_;
+		static physx::PxPhysics* physics_;
+		static physx::PxScene* scene_;
 	private:
 		static PxFoundation* foundation_;
 

@@ -21,6 +21,8 @@ namespace Aftr {
     protected:
 
         void onUpdateWO() override;
+        AftrPawn();
+        ~AftrPawn() override;
 		
     public:
         //movement vars

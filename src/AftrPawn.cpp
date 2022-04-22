@@ -8,6 +8,18 @@ using namespace physx;
 		WO::onUpdateWO();
 	}
 
+Aftr::AftrPawn::AftrPawn() : WO(), IFace(this)
+{
+	this->collider = nullptr;
+	this->material = nullptr;
+}
+
+Aftr::AftrPawn::~AftrPawn()
+{
+	this->collider->release();
+	this->material->release();
+}
+
 	Aftr::AftrPawn* Aftr::AftrPawn::New()
 	{
 		AftrPawn* temp = new AftrPawn();
