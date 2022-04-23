@@ -20,21 +20,21 @@ Aftr::AftrPawn::~AftrPawn()
 	this->material->release();
 }
 
-	Aftr::AftrPawn* Aftr::AftrPawn::New()
+	Aftr::AftrPawn* Aftr::AftrPawn::New(PhysicsManager m)
 	{
 		AftrPawn* temp = new AftrPawn();
-		PxShape* e = PhysicsManager::physics_->createShape(PxCapsuleGeometry(.25f, 1), *material);
-		temp->collider = PhysicsManager::physics_->createRigidDynamic(PxTransform());
+		PxShape* e = m.physics_->createShape(PxCapsuleGeometry(.25f, 1), *material);
+		temp->collider = m.physics_->createRigidDynamic(PxTransform());
 		temp->collider->attachShape(*e);
 		temp->collider->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, true);
 		return temp;
 	}
 
-	Aftr::AftrPawn* Aftr::AftrPawn::New(float radius, float halfHeight)
+	Aftr::AftrPawn* Aftr::AftrPawn::New(float radius, float halfHeight, PhysicsManager m)
 	{
 		AftrPawn* temp = new AftrPawn();
-		PxShape* e = PhysicsManager::physics_->createShape(PxCapsuleGeometry(radius, halfHeight), *material);
-		temp->collider = PhysicsManager::physics_->createRigidDynamic(PxTransform());
+		PxShape* e = m.physics_->createShape(PxCapsuleGeometry(radius, halfHeight), *material);
+		temp->collider = m.physics_->createRigidDynamic(PxTransform());
 		temp->collider->attachShape(*e);
 		temp->collider->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, true);
 		temp->radius = radius;
@@ -44,14 +44,14 @@ Aftr::AftrPawn::~AftrPawn()
 	}
 
 	Aftr::AftrPawn* Aftr::AftrPawn::New(float radius, float halfHeight, float maxSpeed, float acceleration,
-		float deceleration)
+		float deceleration, PhysicsManager m)
 	{
-		collider = PhysicsManager::physics_->createRigidDynamic(PxTransform());
+		collider = m.physics_->createRigidDynamic(PxTransform());
 		
 
 		AftrPawn* temp = new AftrPawn();
-		PxShape *e = PhysicsManager::physics_->createShape(PxCapsuleGeometry(radius, halfHeight), *material);
-		temp->collider = PhysicsManager::physics_->createRigidDynamic(PxTransform());
+		PxShape *e = m.physics_->createShape(PxCapsuleGeometry(radius, halfHeight), *material);
+		temp->collider = m.physics_->createRigidDynamic(PxTransform());
 		temp->collider->attachShape(*e);
 		temp->collider->setRigidBodyFlag(PxRigidBodyFlag::eKINEMATIC, true);
 		temp->accel = acceleration;

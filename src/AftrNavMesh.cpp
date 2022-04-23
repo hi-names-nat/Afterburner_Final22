@@ -14,6 +14,11 @@ AftrNavMesh::AftrNavMesh(Aftr::Model* model)
 
 	m_navQuery = dtAllocNavMeshQuery();
 	m_crowd = dtAllocCrowd();
+	heightfield = rcAllocHeightfield();
+	ch = rcAllocCompactHeightfield();
+	contourset = rcAllocContourSet();
+	pm = rcAllocPolyMesh();
+
 }
 
 void AftrNavMesh::CreateNavSurface()
@@ -21,11 +26,7 @@ void AftrNavMesh::CreateNavSurface()
 	unsigned char* navData = 0;
 	int navDataSize = 0;
 
-	heightfield = rcAllocHeightfield();
-	ch = rcAllocCompactHeightfield();
-	contourset = rcAllocContourSet();
-	pm = rcAllocPolyMesh();
-	
+
 
 
 	if (!rcCreateHeightfield(&NavContext, *heightfield, NavConfig.width, NavConfig.height, NavConfig.bmin, NavConfig.bmax, NavConfig.cs, NavConfig.ch))
@@ -57,7 +58,7 @@ void AftrNavMesh::CreateNavSurface()
 		printf("failed to create poly mesh detail");
 		return;
 	}
-	
+
 	dtNavMeshCreateParams params;
 	memset(&params, 0, sizeof(params));
 	params.verts = pm->verts;
@@ -72,12 +73,12 @@ void AftrNavMesh::CreateNavSurface()
 	params.detailVertsCount = pmd->nverts;
 	params.detailTris = pmd->tris;
 	params.detailTriCount = pmd->ntris;
-	params.offMeshConVerts = 0;
-	params.offMeshConRad = 0;
-	params.offMeshConDir = 0;
-	params.offMeshConAreas = 0;
-	params.offMeshConFlags = 0;
-	params.offMeshConUserID = 0;
+	params.offMeshConVerts = nullptr;
+	params.offMeshConRad = nullptr;
+	params.offMeshConDir = nullptr;
+	params.offMeshConAreas = nullptr;
+	params.offMeshConFlags = nullptr;
+	params.offMeshConUserID = nullptr;
 	params.offMeshConCount = 0;
 	params.walkableHeight = agentHeight;
 	params.walkableRadius = agentRadius;

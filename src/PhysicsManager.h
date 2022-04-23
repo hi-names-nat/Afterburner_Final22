@@ -1,5 +1,8 @@
 #pragma once
 #include "physx/PxPhysicsAPI.h"
+#include "physx/PxPhysics.h"
+#include "physx/PxScene.h"
+#include "physx/PxFoundation.h"
 
 using namespace physx;
 
@@ -8,10 +11,8 @@ namespace Aftr
 	static class PhysicsManager
 	{
 	public:
-		static physx::PxPhysics* physics_;
-		static physx::PxScene* scene_;
-	private:
-		static PxFoundation* foundation_;
+		physx::PxPhysics* physics_;
+		physx::PxScene* scene_;
 
 		PhysicsManager()
 		{
@@ -20,11 +21,13 @@ namespace Aftr
 			foundation_ = PxCreateFoundation(PX_PHYSICS_VERSION, *a, *e);
 			physics_ = PxCreatePhysics(PX_PHYSICS_VERSION, *foundation_, physx::PxTolerancesScale(),
 				false);
-			
+
 			scene_ = physics_->createScene(PxSceneDesc(PxTolerancesScale()));
 		}
-	};
+	private:
+		static PxFoundation* foundation_;
 
+	};
 }
 
 

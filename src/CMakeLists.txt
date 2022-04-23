@@ -96,7 +96,6 @@ IF( WIN32 ) #MSVC Compiler library paths
                optimized "${AFTR_USERLAND_LIB_PATH}/release/SimulationController_static_64.lib"
 
                debug "${AFTR_USERLAND_LIB_PATH}/debug/LowLevel_static_64.lib"
-               debug "${AFTR_USERLAND_LIB_PATH}/debug/LowLevel_static_64.lib"
                debug "${AFTR_USERLAND_LIB_PATH}/debug/PhysX_64.lib"
                debug "${AFTR_USERLAND_LIB_PATH}/debug/LowLevelAABB_static_64.lib"
                debug "${AFTR_USERLAND_LIB_PATH}/debug/PhysXCharacterKinematic_static_64.lib"
