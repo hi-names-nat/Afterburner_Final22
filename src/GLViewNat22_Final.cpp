@@ -33,6 +33,7 @@
 #include "WOImGui.h" //GUI Demos also need to #include "AftrImGuiIncludes.h"
 #include "AftrImGuiIncludes.h"
 #include "AftrGLRendererBase.h"
+#include "AftrNavMesh.h"
 
 using namespace Aftr;
 
@@ -155,6 +156,8 @@ void Aftr::GLViewNat22_Final::loadMap()
    std::string wheeledCar( ManagerEnvironmentConfiguration::getSMM() + "/models/rcx_treads.wrl" );
    std::string grass( ManagerEnvironmentConfiguration::getSMM() + "/models/grassFloor400x400_pp.wrl" );
    std::string human( ManagerEnvironmentConfiguration::getSMM() + "/models/human_chest.wrl" );
+
+   std::string level(ManagerEnvironmentConfiguration::getLMM() + "/models/testLevelGeometry.obj");
    
    //SkyBox Textures readily available
    std::vector< std::string > skyBoxImageNames; //vector to store texture paths
@@ -225,92 +228,6 @@ void Aftr::GLViewNat22_Final::loadMap()
       worldLst->push_back( wo );
    }
 
-   //{
-   //   //Create the infinite grass plane that uses the Open Dynamics Engine (ODE)
-   //   WO* wo = WOStatic::New( grass, Vector(1,1,1), MESH_SHADING_TYPE::mstFLAT );
-   //   ((WOStatic*)wo)->setODEPrimType( ODE_PRIM_TYPE::PLANE );
-   //   wo->setPosition( Vector(0,0,0) );
-   //   wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
-   //   wo->getModel()->getModelDataShared()->getModelMeshes().at(0)->getSkins().at(0).getMultiTextureSet().at(0)->setTextureRepeats( 5.0f );
-   //   wo->setLabel( "Grass" );
-   //   worldLst->push_back( wo );
-   //}
-
-   //{
-   //   //Create the infinite grass plane that uses NVIDIAPhysX(the floor)
-   //   WO* wo = WONVStaticPlane::New( grass, Vector( 1, 1, 1 ), MESH_SHADING_TYPE::mstFLAT );
-   //   wo->setPosition( Vector( 0, 0, 0 ) );
-   //   wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
-   //   wo->getModel()->getModelDataShared()->getModelMeshes().at( 0 )->getSkins().at( 0 ).getMultiTextureSet().at( 0 )->setTextureRepeats( 5.0f );
-   //   wo->setLabel( "Grass" );
-   //   worldLst->push_back( wo );
-   //}
-
-   //{
-   //   //Create the infinite grass plane (the floor)
-   //   WO* wo = WONVPhysX::New( shinyRedPlasticCube, Vector( 1, 1, 1 ), MESH_SHADING_TYPE::mstFLAT );
-   //   wo->setPosition( Vector( 0, 0, 50.0f ) );
-   //   wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
-   //   wo->setLabel( "Grass" );
-   //   worldLst->push_back( wo );
-   //}
-
-   //{
-   //   WO* wo = WONVPhysX::New( shinyRedPlasticCube, Vector( 1, 1, 1 ), MESH_SHADING_TYPE::mstFLAT );
-   //   wo->setPosition( Vector( 0, 0.5f, 75.0f ) );
-   //   wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
-   //   wo->setLabel( "Grass" );
-   //   worldLst->push_back( wo );
-   //}
-
-   //{
-   //   WO* wo = WONVDynSphere::New( ManagerEnvironmentConfiguration::getVariableValue( "sharedmultimediapath" ) + "/models/sphereRp5.wrl", Vector( 1.0f, 1.0f, 1.0f ), mstSMOOTH );
-   //   wo->setPosition( 0, 0, 100.0f );
-   //   wo->setLabel( "Sphere" );
-   //   this->worldLst->push_back( wo );
-   //}
-
-   //{
-   //   WO* wo = WOHumanCal3DPaladin::New( Vector( .5, 1, 1 ), 100 );
-   //   ((WOHumanCal3DPaladin*)wo)->rayIsDrawn = false; //hide the "leg ray"
-   //   ((WOHumanCal3DPaladin*)wo)->isVisible = false; //hide the Bounding Shell
-   //   wo->setPosition( Vector( 20, 20, 20 ) );
-   //   wo->setLabel( "Paladin" );
-   //   worldLst->push_back( wo );
-   //   actorLst->push_back( wo );
-   //   netLst->push_back( wo );
-   //   this->setActor( wo );
-   //}
-   //
-   //{
-   //   WO* wo = WOHumanCyborg::New( Vector( .5, 1.25, 1 ), 100 );
-   //   wo->setPosition( Vector( 20, 10, 20 ) );
-   //   wo->isVisible = false; //hide the WOHuman's bounding box
-   //   ((WOHuman*)wo)->rayIsDrawn = false; //show the 'leg' ray
-   //   wo->setLabel( "Human Cyborg" );
-   //   worldLst->push_back( wo );
-   //   actorLst->push_back( wo ); //Push the WOHuman as an actor
-   //   netLst->push_back( wo );
-   //   this->setActor( wo ); //Start module where human is the actor
-   //}
-
-   //{
-   //   //Create and insert the WOWheeledVehicle
-   //   std::vector< std::string > wheels;
-   //   std::string wheelStr( "../../../shared/mm/models/WOCar1970sBeaterTire.wrl" );
-   //   wheels.push_back( wheelStr );
-   //   wheels.push_back( wheelStr );
-   //   wheels.push_back( wheelStr );
-   //   wheels.push_back( wheelStr );
-   //   WO* wo = WOCar1970sBeater::New( "../../../shared/mm/models/WOCar1970sBeater.wrl", wheels );
-   //   wo->setPosition( Vector( 5, -15, 20 ) );
-   //   wo->setLabel( "Car 1970s Beater" );
-   //   ((WOODE*)wo)->mass = 200;
-   //   worldLst->push_back( wo );
-   //   actorLst->push_back( wo );
-   //   this->setActor( wo );
-   //   netLst->push_back( wo );
-   //}
    
    //Make a Dear Im Gui instance via the WOImGui in the engine... This calls
    //the default Dear ImGui demo that shows all the features... To create your own,
@@ -320,13 +237,46 @@ void Aftr::GLViewNat22_Final::loadMap()
    gui->subscribe_drawImGuiWidget(
       [this, gui]() //this is a lambda, the capture clause is in [], the input argument list is in (), and the body is in {}
       {
-         ImGui::ShowDemoWindow(); //Displays the default ImGui demo from C:/repos/aburn/engine/src/imgui_implot/implot_demo.cpp
-         WOImGui::draw_AftrImGui_Demo( gui ); //Displays a small Aftr Demo from C:/repos/aburn/engine/src/aftr/WOImGui.cpp
-         ImPlot::ShowDemoWindow(); //Displays the ImPlot demo using ImGui from C:/repos/aburn/engine/src/imgui_implot/implot_demo.cpp
+
       } );
    this->worldLst->push_back( gui );
 
-   createNat22_FinalWayPoints();
+ 
+
+   levelWO = WO::New(grass);
+   //levelMesh = levelWO->getModel()->getModelDataShared()->getModelMeshes().at(0)->getMeshDataShared().;
+   worldLst->push_back(levelWO);
+   levelWO->upon_async_model_loaded([this]
+       {
+           //Start navmesh generation
+           navData nmData;
+
+           nmData.numVerts = levelWO->getModel()->getModelDataShared()->getCompositeVertexList().size() * 3;
+           nmData.verts = std::shared_ptr<float[]>(new float[nmData.numVerts]);
+           nmData.numindeces = levelWO->getModel()->getModelDataShared()->getCompositeIndexList().size();
+           nmData.indeces = std::shared_ptr<unsigned[]>(new unsigned[nmData.numindeces]);
+
+           std::vector<Vector> t = levelWO->getModel()->getModelDataShared()->getCompositeVertexList();
+           for (int i = 0; i < t.size(); i++)
+           {
+               nmData.verts.get()[i * 3] = t[i].x;
+               nmData.verts.get()[i * 3 + 1] = t[i].y;
+               nmData.verts.get()[i * 3 + 2] = t[i].z;
+           }
+
+           std::vector<unsigned> t2 = levelWO->getModel()->getModelDataShared()->getCompositeIndexList();
+           for (int i = 0; i < t2.size(); i++)
+           {
+               nmData.indeces.get()[i] = t2[i];
+           }
+
+           //pass to navmesh
+           AftrNavMesh afmesh;
+           afmesh.CreateNavSurface(nmData);
+       });
+
+
+
 }
 
 

@@ -35,7 +35,10 @@ public:
 
 protected:
    GLViewNat22_Final( const std::vector< std::string >& args );
-   virtual void onCreate();   
+   virtual void onCreate();
+
+   Model* levelMesh;
+   WO* levelWO;
 };
 
 /** \} */

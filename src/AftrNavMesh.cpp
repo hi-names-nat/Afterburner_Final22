@@ -1,16 +1,9 @@
 #include "AftrNavMesh.h"
 
-AftrNavMesh::AftrNavMesh(Aftr::Model* model)
+AftrNavMesh::AftrNavMesh()
 {
 	NavConfig = rcConfig();
 	NavContext = rcContext();
-
-	inputModel = model;
-	GLfloat* verts = new GLfloat[3];
-	inputModel->getBoundingBox().getBottomLeftXEdge(verts);
-	float a[3]{ verts[0], verts[1], verts[2] };
-
-	rcVcopy(NavConfig.bmax, a);
 
 	m_navQuery = dtAllocNavMeshQuery();
 	m_crowd = dtAllocCrowd();
@@ -21,19 +14,98 @@ AftrNavMesh::AftrNavMesh(Aftr::Model* model)
 
 }
 
-void AftrNavMesh::CreateNavSurface()
+void AftrNavMesh::CreateNavSurface(navData data)
 {
-	unsigned char* navData = 0;
-	int navDataSize = 0;
+	//OLD
+	{
+		//std::vector<float> verts;
+		//int numVerts;
+		//std::vector<float> tris;
+		//int numTris;
 
+		//numVerts = level->getNbVertices();
+		//numTris = level->getNbTriangles();
 
+		//const physx::PxVec3 *pxVerts = level->getVertices();
 
+		//if ((numVerts <= 0) || (numTris <= 0)) return;
+
+		//for (int i = 0; i < int(level->getNbVertices()); i++)
+		//{
+		//	physx::PxVec3 pos = pxVerts[i];
+		//	verts.push_back(pos.x);
+		//	verts.push_back(pos.y);
+		//	verts.push_back(pos.z);
+		//}
+
+		//
+
+		//if (level->getTriangleMeshFlags() == physx::PxTriangleMeshFlag::e16_BIT_INDICES)
+		//	int indecies = level->getTriangles();
+	}
+
+	//Something is wrong here I think
+	float* bmax = new float[data.numVerts], * bmin = new float[data.numVerts];
+	rcCalcBounds(data.verts.get(), data.numVerts, bmin, bmax);
+
+	numTris = data.numindeces / 3;
+
+	if (!bmax || !bmin) return;
+
+	tris = new int[numTris * 3];
+	for (int i = 0; i < numTris; i++)
+	{
+		tris[i * 3] = data.indeces.get()[i * 3];
+		tris[i * 3 + 1] = data.indeces.get()[i * 3 + 1];
+		tris[i * 3 + 2] = data.indeces.get()[i * 3 + 2];
+	}
+
+	//RC Config
+	{
+		memset(&NavConfig, 0, sizeof(NavConfig));
+
+		rcVcopy(NavConfig.bmax, bmax);
+		rcVcopy(NavConfig.bmin, bmin);
+
+		NavConfig.cs = cellSize;
+		NavConfig.ch = cellHeight;
+		NavConfig.walkableSlopeAngle = agentMaxSlope;
+		NavConfig.walkableHeight = (int)std::floorf(agentHeight / NavConfig.ch);
+		NavConfig.walkableClimb = (int)std::floorf(agentMaxClimb / NavConfig.ch);
+		NavConfig.walkableRadius = (int)std::floorf(agentRadius / NavConfig.cs);
+		NavConfig.maxEdgeLen = (int)std::floorf(maxEdgeLen / cellSize);
+		NavConfig.maxSimplificationError = MaxError;
+		NavConfig.minRegionArea = (int)rcSqr(MinRegionSZ);
+		NavConfig.mergeRegionArea = (int)rcSqr(MergeRegionArea);	// Note: area = size*size
+		NavConfig.maxVertsPerPoly = (int)MaxVertsPerPoly;
+		NavConfig.detailSampleDist = detailSampleDist < 0.9f ? 0 : cellSize * detailSampleDist;
+		NavConfig.detailSampleMaxError = cellHeight * MaxError;
+		rcCalcGridSize(NavConfig.bmin, NavConfig.bmax, NavConfig.cs, &NavConfig.width, &NavConfig.height);
+	}
+	NavContext.resetTimers();
+
+	NavContext.startTimer(RC_TIMER_TOTAL);
+
+	NavContext.log(RC_LOG_PROGRESS, "Building navigation:");
+	NavContext.log(RC_LOG_PROGRESS, " - %d x %d cells", NavConfig.width, NavConfig.height);
+	NavContext.log(RC_LOG_PROGRESS, " - %.1fK verts, %.1fK tris", data.numVerts / 1000.0f, numTris / 1000.0f);
 
 	if (!rcCreateHeightfield(&NavContext, *heightfield, NavConfig.width, NavConfig.height, NavConfig.bmin, NavConfig.bmax, NavConfig.cs, NavConfig.ch))
 	{
 		printf("failed to create heightfield");
 		return;
 	}
+
+	auto* triAreas = new unsigned char[numTris];
+	if (!triAreas) 
+	{
+		printf("failed to create compact heightfield");
+		return;
+	}
+
+	memset(triAreas, 0, numTris * sizeof(unsigned char));
+	rcMarkWalkableTriangles(&NavContext, NavConfig.walkableSlopeAngle, data.verts.get(), data.numVerts, tris, numTris, triAreas);
+	rcRasterizeTriangles(&NavContext, data.verts.get(), data.numVerts, tris, triAreas, numTris, *heightfield, NavConfig.walkableClimb);
 
 	if (!rcBuildCompactHeightfield(&NavContext, NavConfig.walkableHeight, NavConfig.walkableClimb, *heightfield, *ch))
 	{
@@ -53,7 +125,7 @@ void AftrNavMesh::CreateNavSurface()
 		return;
 	}
 
-	if (!rcBuildPolyMeshDetail(&NavContext, *pm, *ch, NavConfig.detailSampleDist, NavConfig.detailSampleMaxError, *pmd));
+	if (!rcBuildPolyMeshDetail(&NavContext, *pm, *ch, NavConfig.detailSampleDist, NavConfig.detailSampleMaxError, *pmd))
 	{
 		printf("failed to create poly mesh detail");
 		return;
@@ -89,7 +161,10 @@ void AftrNavMesh::CreateNavSurface()
 	params.ch = NavConfig.ch;
 	params.buildBvTree = true;
 
-	if (!dtCreateNavMeshData(&params, &navData, &navDataSize))
+	unsigned char *nData = new unsigned char;
+	int nDataSz;
+
+	if (!dtCreateNavMeshData(&params, &nData, &nDataSz))
 	{
 		printf("Could not build Detour navmesh.");
 		return;
@@ -98,17 +173,17 @@ void AftrNavMesh::CreateNavSurface()
 	dtNavMesh* m_navMesh = dtAllocNavMesh();
 	if (!m_navMesh)
 	{
-		dtFree(navData);
+		dtFree(nData);
 		printf("Could not create Detour navmesh");
 		return;
 	}
 
 	dtStatus status;
 
-	status = m_navMesh->init(navData, navDataSize, DT_TILE_FREE_DATA);
+	status = m_navMesh->init(nData, nDataSz, DT_TILE_FREE_DATA);
 	if (dtStatusFailed(status))
 	{
-		dtFree(navData);
+		dtFree(nData);
 		printf("Could not init Detour navmesh");
 		return;
 	}

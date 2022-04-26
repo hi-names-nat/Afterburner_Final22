@@ -8,7 +8,7 @@ using namespace physx;
 
 namespace Aftr
 {
-	static class PhysicsManager
+	class PhysicsManager
 	{
 	public:
 		physx::PxPhysics* physics_;
