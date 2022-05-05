@@ -30,8 +30,8 @@ class AftrNavMesh
 public:
 	float cellSize = .5f, cellHeight = .5f;
 	float agentRadius = .25, agentMaxSlope = 70,
-	agentHeight = 5, agentMaxClimb = 5, maxEdgeLen = .25f, MaxError = .2f, MinRegionSZ = 0,
-	MergeRegionArea = 0, MaxVertsPerPoly = 3, detailSampleDist = .5f;
+	agentHeight = 5, agentMaxClimb = 5, maxEdgeLen = .25f, MaxError = .2f, MinRegionSZ = 4,
+	MergeRegionArea = 3, MaxVertsPerPoly = 3, detailSampleDist = .5f;
 
 	AftrNavMesh();
 	void CreateNavSurface(navData data);

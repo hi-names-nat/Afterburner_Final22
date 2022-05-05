@@ -5,13 +5,6 @@ AftrNavMesh::AftrNavMesh()
 	NavConfig = rcConfig();
 	NavContext = rcContext();
 
-	m_navQuery = dtAllocNavMeshQuery();
-	m_crowd = dtAllocCrowd();
-	heightfield = rcAllocHeightfield();
-	ch = rcAllocCompactHeightfield();
-	contourset = rcAllocContourSet();
-	pm = rcAllocPolyMesh();
-
 }
 
 void AftrNavMesh::CreateNavSurface(navData data)
@@ -46,7 +39,7 @@ void AftrNavMesh::CreateNavSurface(navData data)
 
 	//Something is wrong here I think
 	float* bmax = new float[data.numVerts], * bmin = new float[data.numVerts];
-	rcCalcBounds(data.verts.get(), data.numVerts, bmin, bmax);
+	rcCalcBounds(data.verts.get(), data.numVerts / 3, bmin, bmax);
 
 	numTris = data.numindeces / 3;
 
@@ -70,10 +63,10 @@ void AftrNavMesh::CreateNavSurface(navData data)
 		NavConfig.cs = cellSize;
 		NavConfig.ch = cellHeight;
 		NavConfig.walkableSlopeAngle = agentMaxSlope;
-		NavConfig.walkableHeight = (int)std::floorf(agentHeight / NavConfig.ch);
-		NavConfig.walkableClimb = (int)std::floorf(agentMaxClimb / NavConfig.ch);
-		NavConfig.walkableRadius = (int)std::floorf(agentRadius / NavConfig.cs);
-		NavConfig.maxEdgeLen = (int)std::floorf(maxEdgeLen / cellSize);
+		NavConfig.walkableHeight = (int)std::ceilf(agentHeight / NavConfig.ch);
+		NavConfig.walkableClimb = (int)std::ceilf(agentMaxClimb / NavConfig.ch);
+		NavConfig.walkableRadius = (int)std::ceilf(agentRadius / NavConfig.cs);
+		NavConfig.maxEdgeLen = maxEdgeLen / cellSize;
 		NavConfig.maxSimplificationError = MaxError;
 		NavConfig.minRegionArea = (int)rcSqr(MinRegionSZ);
 		NavConfig.mergeRegionArea = (int)rcSqr(MergeRegionArea);	// Note: area = size*size
@@ -90,6 +83,13 @@ void AftrNavMesh::CreateNavSurface(navData data)
 	NavContext.log(RC_LOG_PROGRESS, " - %d x %d cells", NavConfig.width, NavConfig.height);
 	NavContext.log(RC_LOG_PROGRESS, " - %.1fK verts, %.1fK tris", data.numVerts / 1000.0f, numTris / 1000.0f);
 
+	m_navQuery = dtAllocNavMeshQuery();
+	m_crowd = dtAllocCrowd();
+
+
+	heightfield = rcAllocHeightfield();
+	if (!heightfield) return;
+
 	if (!rcCreateHeightfield(&NavContext, *heightfield, NavConfig.width, NavConfig.height, NavConfig.bmin, NavConfig.bmax, NavConfig.cs, NavConfig.ch))
 	{
 		printf("failed to create heightfield");
@@ -105,26 +105,49 @@ void AftrNavMesh::CreateNavSurface(navData data)
 
 	memset(triAreas, 0, numTris * sizeof(unsigned char));
 	rcMarkWalkableTriangles(&NavContext, NavConfig.walkableSlopeAngle, data.verts.get(), data.numVerts, tris, numTris, triAreas);
-	rcRasterizeTriangles(&NavContext, data.verts.get(), data.numVerts, tris, triAreas, numTris, *heightfield, NavConfig.walkableClimb);
+	if (!rcRasterizeTriangles(&NavContext, data.verts.get(), data.numVerts / 3, tris, triAreas, numTris, *heightfield, NavConfig.walkableClimb)) return;
+	
 
+	ch = rcAllocCompactHeightfield();
+	if (!ch) return;
 	if (!rcBuildCompactHeightfield(&NavContext, NavConfig.walkableHeight, NavConfig.walkableClimb, *heightfield, *ch))
 	{
 		printf("failed to create compact heightfield");
 		return;
 	}
 
-	if (!rcBuildContours(&NavContext, *ch, NavConfig.detailSampleMaxError, NavConfig.maxEdgeLen, *contourset))
+	rcErodeWalkableArea(&NavContext, NavConfig.walkableRadius, *ch);
+
+	if (!rcBuildDistanceField(&NavContext, *ch))
+	{
+		NavContext.log(RC_LOG_ERROR, "buildNavigation: Could not build distance field.");
+		return;
+	}
+
+	if (!rcBuildRegions(&NavContext, *ch, 0, NavConfig.minRegionArea, NavConfig.mergeRegionArea))
+	{
+		NavContext.log(RC_LOG_ERROR, "buildNavigation: Could not build watershed regions.");
+		return;
+	}
+
+	contourset = rcAllocContourSet();
+	if (!contourset) return;
+	if (!rcBuildContours(&NavContext, *ch, NavConfig.maxSimplificationError, NavConfig.maxEdgeLen, *contourset))
 	{
 		printf("failed to create contours");
 		return;
 	}
 
-	if (!rcBuildPolyMesh(&NavContext, *contourset, 1, *pm))
+	pm = rcAllocPolyMesh();
+	if (!pm) return;
+	if (!rcBuildPolyMesh(&NavContext, *contourset, NavConfig.maxVertsPerPoly, *pm))
 	{
 		printf("failed to create poly mesh");
 		return;
 	}
 
+	pmd = rcAllocPolyMeshDetail();
+	if (!pmd) return;
 	if (!rcBuildPolyMeshDetail(&NavContext, *pm, *ch, NavConfig.detailSampleDist, NavConfig.detailSampleMaxError, *pmd))
 	{
 		printf("failed to create poly mesh detail");

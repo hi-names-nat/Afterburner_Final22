@@ -212,20 +212,20 @@ void Aftr::GLViewNat22_Final::loadMap()
 
    { 
       ////Create the infinite grass plane (the floor)
-      WO* wo = WO::New( grass, Vector( 1, 1, 1 ), MESH_SHADING_TYPE::mstFLAT );
-      wo->setPosition( Vector( 0, 0, 0 ) );
-      wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
-      wo->upon_async_model_loaded( [wo]()
-         {
-            ModelMeshSkin& grassSkin = wo->getModel()->getModelDataShared()->getModelMeshes().at( 0 )->getSkins().at( 0 );
-            grassSkin.getMultiTextureSet().at( 0 )->setTextureRepeats( 5.0f );
-            grassSkin.setAmbient( aftrColor4f( 0.4f, 0.4f, 0.4f, 1.0f ) ); //Color of object when it is not in any light
-            grassSkin.setDiffuse( aftrColor4f( 1.0f, 1.0f, 1.0f, 1.0f ) ); //Diffuse color components (ie, matte shading color of this object)
-            grassSkin.setSpecular( aftrColor4f( 0.4f, 0.4f, 0.4f, 1.0f ) ); //Specular color component (ie, how "shiney" it is)
-            grassSkin.setSpecularCoefficient( 10 ); // How "sharp" are the specular highlights (bigger is sharper, 1000 is very sharp, 10 is very dull)
-         } );
-      wo->setLabel( "Grass" );
-      worldLst->push_back( wo );
+      //WO* wo = WO::New( grass, Vector( 1, 1, 1 ), MESH_SHADING_TYPE::mstFLAT );
+      //wo->setPosition( Vector( 0, 0, 0 ) );
+      //wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
+      //wo->upon_async_model_loaded( [wo]()
+      //   {
+      //      ModelMeshSkin& grassSkin = wo->getModel()->getModelDataShared()->getModelMeshes().at( 0 )->getSkins().at( 0 );
+      //      grassSkin.getMultiTextureSet().at( 0 )->setTextureRepeats( 5.0f );
+      //      grassSkin.setAmbient( aftrColor4f( 0.4f, 0.4f, 0.4f, 1.0f ) ); //Color of object when it is not in any light
+      //      grassSkin.setDiffuse( aftrColor4f( 1.0f, 1.0f, 1.0f, 1.0f ) ); //Diffuse color components (ie, matte shading color of this object)
+      //      grassSkin.setSpecular( aftrColor4f( 0.4f, 0.4f, 0.4f, 1.0f ) ); //Specular color component (ie, how "shiney" it is)
+      //      grassSkin.setSpecularCoefficient( 10 ); // How "sharp" are the specular highlights (bigger is sharper, 1000 is very sharp, 10 is very dull)
+      //   } );
+      //wo->setLabel( "Grass" );
+      //worldLst->push_back( wo );
    }
 
    
@@ -243,7 +243,8 @@ void Aftr::GLViewNat22_Final::loadMap()
 
  
 
-   levelWO = WO::New(grass);
+   levelWO = WO::New(level, Vector(1,1,1), MESH_SHADING_TYPE::mstFLAT);
+   levelWO->setPosition(0, 0, 0);
    //levelMesh = levelWO->getModel()->getModelDataShared()->getModelMeshes().at(0)->getMeshDataShared().;
    worldLst->push_back(levelWO);
    levelWO->upon_async_model_loaded([this]
