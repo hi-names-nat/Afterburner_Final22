@@ -611,7 +611,7 @@ bool dtCrowd::requestMoveTarget(const int idx, dtPolyRef ref, const float* pos)
 		return false;
 	if (!ref)
 		return false;
-
+		
 	dtCrowdAgent* ag = &m_agents[idx];
 	
 	// Initialize request.

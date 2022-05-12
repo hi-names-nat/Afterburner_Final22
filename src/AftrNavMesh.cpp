@@ -1,5 +1,9 @@
 #include "AftrNavMesh.h"
 
+#include <DebugDraw.h>
+#include <RecastDebugDraw.h>
+
+
 AftrNavMesh::AftrNavMesh()
 {
 	NavConfig = rcConfig();
@@ -7,36 +11,17 @@ AftrNavMesh::AftrNavMesh()
 
 }
 
+AftrNavMesh::~AftrNavMesh()
+{
+	rcFreeHeightField(heightfield);
+	rcFreeCompactHeightfield(ch);
+	rcFreeContourSet(contourset);
+	rcFreePolyMesh(pm);
+	rcFreePolyMeshDetail(pmd);
+}	
+
 void AftrNavMesh::CreateNavSurface(navData data)
 {
-	//OLD
-	{
-		//std::vector<float> verts;
-		//int numVerts;
-		//std::vector<float> tris;
-		//int numTris;
-
-		//numVerts = level->getNbVertices();
-		//numTris = level->getNbTriangles();
-
-		//const physx::PxVec3 *pxVerts = level->getVertices();
-
-		//if ((numVerts <= 0) || (numTris <= 0)) return;
-
-		//for (int i = 0; i < int(level->getNbVertices()); i++)
-		//{
-		//	physx::PxVec3 pos = pxVerts[i];
-		//	verts.push_back(pos.x);
-		//	verts.push_back(pos.y);
-		//	verts.push_back(pos.z);
-		//}
-
-		//
-
-		//if (level->getTriangleMeshFlags() == physx::PxTriangleMeshFlag::e16_BIT_INDICES)
-		//	int indecies = level->getTriangles();
-	}
-
 	//Something is wrong here I think
 	float* bmax = new float[data.numVerts], * bmin = new float[data.numVerts];
 	rcCalcBounds(data.verts.get(), data.numVerts / 3, bmin, bmax);
@@ -72,8 +57,9 @@ void AftrNavMesh::CreateNavSurface(navData data)
 		NavConfig.mergeRegionArea = (int)rcSqr(MergeRegionArea);	// Note: area = size*size
 		NavConfig.maxVertsPerPoly = (int)MaxVertsPerPoly;
 		NavConfig.detailSampleDist = detailSampleDist < 0.9f ? 0 : cellSize * detailSampleDist;
-		NavConfig.detailSampleMaxError = cellHeight * MaxError;
+		NavConfig.detailSampleMaxError = cellHeight * maxSampleError;
 		rcCalcGridSize(NavConfig.bmin, NavConfig.bmax, NavConfig.cs, &NavConfig.width, &NavConfig.height);
+		if (NavConfig.height == 0) NavConfig.height++;
 	}
 	NavContext.resetTimers();
 
@@ -102,7 +88,6 @@ void AftrNavMesh::CreateNavSurface(navData data)
 		printf("failed to create compact heightfield");
 		return;
 	}
-
 	memset(triAreas, 0, numTris * sizeof(unsigned char));
 	rcMarkWalkableTriangles(&NavContext, NavConfig.walkableSlopeAngle, data.verts.get(), data.numVerts, tris, numTris, triAreas);
 	if (!rcRasterizeTriangles(&NavContext, data.verts.get(), data.numVerts / 3, tris, triAreas, numTris, *heightfield, NavConfig.walkableClimb)) return;
@@ -189,15 +174,15 @@ void AftrNavMesh::CreateNavSurface(navData data)
 
 	if (!dtCreateNavMeshData(&params, &nData, &nDataSz))
 	{
-		printf("Could not build Detour navmesh.");
+		printf("Could not build Detour navmesh data.\n");
 		return;
 	}
 
-	dtNavMesh* m_navMesh = dtAllocNavMesh();
+	m_navMesh = dtAllocNavMesh();
 	if (!m_navMesh)
 	{
 		dtFree(nData);
-		printf("Could not create Detour navmesh");
+		printf("Could not allocate Detour navmesh\n");
 		return;
 	}
 
@@ -207,16 +192,19 @@ void AftrNavMesh::CreateNavSurface(navData data)
 	if (dtStatusFailed(status))
 	{
 		dtFree(nData);
-		printf("Could not init Detour navmesh");
+		printf("Could not init Detour navmesh\n");
 		return;
 	}
 
 	status = m_navQuery->init(m_navMesh, 2048);
 	if (dtStatusFailed(status))
 	{
-		printf("Could not init Detour navmesh query");
+		printf("Could not init Detour navmesh query\n");
 		return;
 	}
 
-	return;
+	printf("Recast & Detour successfully built!\n");
+
+	
+	onNavMeshBuilt();
 }

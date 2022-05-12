@@ -1,6 +1,8 @@
 #pragma once
 
+#include "AftrNavMesh.h"
 #include "GLView.h"
+#include "DetourCrowd.h"
 
 namespace Aftr
 {
@@ -25,7 +27,6 @@ public:
    virtual ~GLViewNat22_Final();
    virtual void updateWorld(); ///< Called once per frame
    virtual void loadMap(); ///< Called once at startup to build this module's scene
-   virtual void createNat22_FinalWayPoints();
    virtual void onResizeWindow( GLsizei width, GLsizei height );
    virtual void onMouseDown( const SDL_MouseButtonEvent& e );
    virtual void onMouseUp( const SDL_MouseButtonEvent& e );
@@ -33,12 +34,18 @@ public:
    virtual void onKeyDown( const SDL_KeyboardEvent& key );
    virtual void onKeyUp( const SDL_KeyboardEvent& key );
 
+   void SetUpDetourCrowd();
+
 protected:
    GLViewNat22_Final( const std::vector< std::string >& args );
    virtual void onCreate();
 
    Model* levelMesh;
    WO* levelWO;
+   dtCrowd* crowdManger;
+   AftrNavMesh afmesh;
+   time_t lastFrameTime;
+   bool isCrowdInitialized = false;
 };
 
 /** \} */

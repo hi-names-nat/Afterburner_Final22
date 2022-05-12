@@ -34,6 +34,10 @@
 #include "AftrImGuiIncludes.h"
 #include "AftrGLRendererBase.h"
 #include "AftrNavMesh.h"
+#include "AftrNavMesh.h"
+#include "WODetourActor.h"
+
+
 
 using namespace Aftr;
 
@@ -89,9 +93,19 @@ GLViewNat22_Final::~GLViewNat22_Final()
 
 void GLViewNat22_Final::updateWorld()
 {
+    time_t deltaTime = time(nullptr) - lastFrameTime;
    GLView::updateWorld(); //Just call the parent's update world first.
                           //If you want to add additional functionality, do it after
                           //this call.
+   if (!isCrowdInitialized) return;
+
+   dtCrowdAgentDebugInfo dbnfo;
+   crowdManger->update(deltaTime,  &dbnfo);
+   crowdManger->getEditableAgent(0)->state = DT_CROWDAGENT_STATE_WALKING;
+
+   lastFrameTime = time(nullptr);
+
+   std::cout << crowdManger->getAgent(0)->npos[0] << " " << crowdManger->getAgent(0)->npos[1] << " " << crowdManger->getAgent(0)->npos[2] << '\n';
 }
 
 
@@ -129,6 +143,27 @@ void GLViewNat22_Final::onKeyDown( const SDL_KeyboardEvent& key )
    {
 
    }
+
+    if (key.keysym.sym == SDLK_t)
+    {
+        
+        rcVcopy(crowdManger->getEditableAgent(0)->npos, new float[3]{ cam->getPosition().x, cam->getPosition().y, cam->getPosition().z });
+        //crowdManger->getEditableAgent(0)->
+    }
+
+    if (key.keysym.sym == SDLK_g)
+    {
+        dtPolyRef refToGoal(0);
+        dtQueryFilter filter = dtQueryFilter();
+        const float* halfExtents = crowdManger->getQueryExtents();
+        float tgt[3];
+        dtPolyRef ref;
+        float center[3]{ cam->getPosition().x, cam->getPosition().y, cam->getPosition().z };
+        //crowdManger->getNavMeshQuery()->findNearestPoly(center, new float[3]{ 5,5,5 }, &filter, &refToGoal, tgt);
+        //filter is invalid?
+        crowdManger->getNavMeshQuery()->findRandomPoint(&filter, []() {return (float)0; }, &ref, tgt);
+    	crowdManger->requestMoveTarget(0, ref, tgt);
+    }
 }
 
 
@@ -157,35 +192,12 @@ void Aftr::GLViewNat22_Final::loadMap()
    std::string grass( ManagerEnvironmentConfiguration::getSMM() + "/models/grassFloor400x400_pp.wrl" );
    std::string human( ManagerEnvironmentConfiguration::getSMM() + "/models/human_chest.wrl" );
 
-   std::string level(ManagerEnvironmentConfiguration::getLMM() + "/models/testLevelGeometry.obj");
+   std::string level(ManagerEnvironmentConfiguration::getLMM() + "/models/dungeon.obj");
+   std::string aimodel(ManagerEnvironmentConfiguration::getLMM() + "/models/AI test model.dae");
    
    //SkyBox Textures readily available
    std::vector< std::string > skyBoxImageNames; //vector to store texture paths
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_water+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_dust+6.jpg" );
    skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_mountains+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_winter+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/early_morning+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_afternoon+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_cloudy+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_cloudy3+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_day+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_day2+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_deepsun+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_evening+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_morning+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_morning2+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_noon+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/sky_warp+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/space_Hubble_Nebula+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/space_gray_matter+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/space_easter+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/space_hot_nebula+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/space_ice_field+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/space_lemon_lime+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/space_milk_chocolate+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/space_solar_bloom+6.jpg" );
-   //skyBoxImageNames.push_back( ManagerEnvironmentConfiguration::getSMM() + "/images/skyboxes/space_thick_rb+6.jpg" );
 
    {
       //Create a light
@@ -210,24 +222,6 @@ void Aftr::GLViewNat22_Final::loadMap()
       worldLst->push_back( wo );
    }
 
-   { 
-      ////Create the infinite grass plane (the floor)
-      //WO* wo = WO::New( grass, Vector( 1, 1, 1 ), MESH_SHADING_TYPE::mstFLAT );
-      //wo->setPosition( Vector( 0, 0, 0 ) );
-      //wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
-      //wo->upon_async_model_loaded( [wo]()
-      //   {
-      //      ModelMeshSkin& grassSkin = wo->getModel()->getModelDataShared()->getModelMeshes().at( 0 )->getSkins().at( 0 );
-      //      grassSkin.getMultiTextureSet().at( 0 )->setTextureRepeats( 5.0f );
-      //      grassSkin.setAmbient( aftrColor4f( 0.4f, 0.4f, 0.4f, 1.0f ) ); //Color of object when it is not in any light
-      //      grassSkin.setDiffuse( aftrColor4f( 1.0f, 1.0f, 1.0f, 1.0f ) ); //Diffuse color components (ie, matte shading color of this object)
-      //      grassSkin.setSpecular( aftrColor4f( 0.4f, 0.4f, 0.4f, 1.0f ) ); //Specular color component (ie, how "shiney" it is)
-      //      grassSkin.setSpecularCoefficient( 10 ); // How "sharp" are the specular highlights (bigger is sharper, 1000 is very sharp, 10 is very dull)
-      //   } );
-      //wo->setLabel( "Grass" );
-      //worldLst->push_back( wo );
-   }
-
    
    //Make a Dear Im Gui instance via the WOImGui in the engine... This calls
    //the default Dear ImGui demo that shows all the features... To create your own,
@@ -241,20 +235,30 @@ void Aftr::GLViewNat22_Final::loadMap()
       } );
    this->worldLst->push_back( gui );
 
- 
+   
 
-   levelWO = WO::New(level, Vector(1,1,1), MESH_SHADING_TYPE::mstFLAT);
+   levelWO = WO::New(level, Vector(1,1,1), MESH_SHADING_TYPE::mstAUTO);
    levelWO->setPosition(0, 0, 0);
-   //levelMesh = levelWO->getModel()->getModelDataShared()->getModelMeshes().at(0)->getMeshDataShared().;
    worldLst->push_back(levelWO);
-   levelWO->upon_async_model_loaded([this]
+   levelWO->upon_async_model_loaded([&]
        {
+           levelWO->getModel()->getSkin(0).setAmbient(aftrColor4f(.1f, .1f, .1f, 1));
+           levelWO->getModel()->getSkin(0).setColor4f(aftrColor4f(.1f, .1f, .1f, 1));
+           levelWO->getModel()->getSkin(0).setSpecular(aftrColor4f(.1f, .1f, .1f, 1));
+           levelWO->getModel()->getSkin(0).setDiffuse(aftrColor4f(.1f, .1f, .1f, 1));
+
+
+
+
+
            //Start navmesh generation
            navData nmData;
 
-           nmData.numVerts = levelWO->getModel()->getModelDataShared()->getCompositeVertexList().size() * 3;
+           Model* temp = levelWO->getModel();
+
+           nmData.numVerts = this->levelWO->getModel()->getModelDataShared()->getCompositeVertexList().size() * 3;
            nmData.verts = std::shared_ptr<float[]>(new float[nmData.numVerts]);
-           nmData.numindeces = levelWO->getModel()->getModelDataShared()->getCompositeIndexList().size();
+           nmData.numindeces = this->levelWO->getModel()->getModelDataShared()->getCompositeIndexList().size();
            nmData.indeces = std::shared_ptr<unsigned[]>(new unsigned[nmData.numindeces]);
 
            std::vector<Vector> t = levelWO->getModel()->getModelDataShared()->getCompositeVertexList();
@@ -271,24 +275,32 @@ void Aftr::GLViewNat22_Final::loadMap()
                nmData.indeces.get()[i] = t2[i];
            }
 
-           //pass to navmesh
-           AftrNavMesh afmesh;
+			//Custom behavior after nm is built, used to call the setup for crowd, could be replaced for a unique solution.
+           afmesh.onNavMeshBuilt = [&] {SetUpDetourCrowd(); };
            afmesh.CreateNavSurface(nmData);
+
+           WO* navMeshVis = WO::New();
+           navMeshVis->setPosition(Vector(afmesh.m_navMesh->getParams()->orig[0], afmesh.m_navMesh->getParams()->orig[1], afmesh.m_navMesh->getParams()->orig[2]));
+
+			//ModelMeshRenderData data* = new ModelMeshRenderData()
        });
-
-
-
 }
 
 
-void GLViewNat22_Final::createNat22_FinalWayPoints()
+void GLViewNat22_Final::SetUpDetourCrowd()
 {
-   // Create a waypoint with a radius of 3, a frequency of 5 seconds, activated by GLView's camera, and is visible.
-   WayPointParametersBase params(this);
-   params.frequency = 5000;
-   params.useCamera = true;
-   params.visible = true;
-   WOWayPointSpherical* wayPt = WOWayPointSpherical::New( params, 3 );
-   wayPt->setPosition( Vector( 50, 0, 3 ) );
-   worldLst->push_back( wayPt );
+    //setup crowd st/ we can use actors on the navmesh
+
+    crowdManger = new dtCrowd();
+    crowdManger->init(30, 3, afmesh.m_navMesh);
+    dtObstacleAvoidanceParams p;
+    
+    crowdManger->setObstacleAvoidanceParams(0, &p); 
+    dtCrowdAgentParams agentParams;
+    agentParams.maxSpeed = 1.25f;
+    agentParams.maxAcceleration = .5f;
+    
+    WODetourActor *dtA = WODetourActor::New(crowdManger, Vector(0, 0, 0), agentParams);
+    worldLst->push_back(dtA);
+    isCrowdInitialized = true;
 }
