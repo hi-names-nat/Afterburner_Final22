@@ -37,8 +37,6 @@
 #include "AftrNavMesh.h"
 #include "WODetourActor.h"
 
-
-
 using namespace Aftr;
 
 GLViewNat22_Final* GLViewNat22_Final::New( const std::vector< std::string >& args )
@@ -101,9 +99,10 @@ void GLViewNat22_Final::updateWorld()
 
    dtCrowdAgentDebugInfo dbnfo;
    crowdManger->update(deltaTime,  &dbnfo);
-   crowdManger->getEditableAgent(0)->state = DT_CROWDAGENT_STATE_WALKING;
 
    lastFrameTime = time(nullptr);
+
+    
 
    std::cout << crowdManger->getAgent(0)->npos[0] << " " << crowdManger->getAgent(0)->npos[1] << " " << crowdManger->getAgent(0)->npos[2] << '\n';
 }
@@ -136,33 +135,18 @@ void GLViewNat22_Final::onMouseMove( const SDL_MouseMotionEvent& e )
 void GLViewNat22_Final::onKeyDown( const SDL_KeyboardEvent& key )
 {
    GLView::onKeyDown( key );
-   if( key.keysym.sym == SDLK_0 )
-      this->setNumPhysicsStepsPerRender( 1 );
-
-   if( key.keysym.sym == SDLK_1 )
-   {
-
-   }
 
     if (key.keysym.sym == SDLK_t)
     {
+        float* camPosRC;
+        AftrNavMesh::AftrToRC(cam->getPosition(), camPosRC);
         
-        rcVcopy(crowdManger->getEditableAgent(0)->npos, new float[3]{ cam->getPosition().x, cam->getPosition().y, cam->getPosition().z });
-        //crowdManger->getEditableAgent(0)->
+        rcVcopy(crowdManger->getEditableAgent(0)->npos, camPosRC);
     }
 
     if (key.keysym.sym == SDLK_g)
     {
-        dtPolyRef refToGoal(0);
-        dtQueryFilter filter = dtQueryFilter();
-        const float* halfExtents = crowdManger->getQueryExtents();
-        float tgt[3];
-        dtPolyRef ref;
-        float center[3]{ cam->getPosition().x, cam->getPosition().y, cam->getPosition().z };
-        //crowdManger->getNavMeshQuery()->findNearestPoly(center, new float[3]{ 5,5,5 }, &filter, &refToGoal, tgt);
-        //filter is invalid?
-        crowdManger->getNavMeshQuery()->findRandomPoint(&filter, []() {return (float)0; }, &ref, tgt);
-    	crowdManger->requestMoveTarget(0, ref, tgt);
+        dtA->setDestination(cam->getPosition());
     }
 }
 
@@ -221,7 +205,6 @@ void Aftr::GLViewNat22_Final::loadMap()
       wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
       worldLst->push_back( wo );
    }
-
    
    //Make a Dear Im Gui instance via the WOImGui in the engine... This calls
    //the default Dear ImGui demo that shows all the features... To create your own,
@@ -242,65 +225,77 @@ void Aftr::GLViewNat22_Final::loadMap()
    worldLst->push_back(levelWO);
    levelWO->upon_async_model_loaded([&]
        {
-           levelWO->getModel()->getSkin(0).setAmbient(aftrColor4f(.1f, .1f, .1f, 1));
+		std::string navMesh = (ManagerEnvironmentConfiguration::getLMM() + "models/dungeon.obj");
+
+            levelWO->getModel()->getSkin(0).setAmbient(aftrColor4f(.1f, .1f, .1f, 1));
            levelWO->getModel()->getSkin(0).setColor4f(aftrColor4f(.1f, .1f, .1f, 1));
            levelWO->getModel()->getSkin(0).setSpecular(aftrColor4f(.1f, .1f, .1f, 1));
            levelWO->getModel()->getSkin(0).setDiffuse(aftrColor4f(.1f, .1f, .1f, 1));
 
-
-
-
+           
 
            //Start navmesh generation
            navData nmData;
 
            Model* temp = levelWO->getModel();
 
-           nmData.numVerts = this->levelWO->getModel()->getModelDataShared()->getCompositeVertexList().size() * 3;
-           nmData.verts = std::shared_ptr<float[]>(new float[nmData.numVerts]);
-           nmData.numindeces = this->levelWO->getModel()->getModelDataShared()->getCompositeIndexList().size();
-           nmData.indeces = std::shared_ptr<unsigned[]>(new unsigned[nmData.numindeces]);
 
-           std::vector<Vector> t = levelWO->getModel()->getModelDataShared()->getCompositeVertexList();
-           for (int i = 0; i < t.size(); i++)
+           nmData.numVerts = this->levelWO->getModel()->getModelDataShared()->getCompositeVertexList().size() * 3;
+           nmData.verts = new float[nmData.numVerts];
+           nmData.numindeces = this->levelWO->getModel()->getModelDataShared()->getCompositeIndexList().size();
+           nmData.indeces = new int[nmData.numindeces];
+
+
+			//Allocate X Z Y, has to be Y - up.
+           for (int i = 0; i < nmData.numVerts /3; i++)
            {
-               nmData.verts.get()[i * 3] = t[i].x;
-               nmData.verts.get()[i * 3 + 1] = t[i].y;
-               nmData.verts.get()[i * 3 + 2] = t[i].z;
+               nmData.verts[i * 3] = levelWO->getModel()->getCompositeVertexList()[i].x;
+               nmData.verts[i * 3 + 1] = levelWO->getModel()->getCompositeVertexList()[i].z;
+               nmData.verts[i * 3 + 2] = levelWO->getModel()->getCompositeVertexList()[i].y;
            }
 
-           std::vector<unsigned> t2 = levelWO->getModel()->getModelDataShared()->getCompositeIndexList();
-           for (int i = 0; i < t2.size(); i++)
+           for (int i = 0; i < nmData.numindeces; i++)
            {
-               nmData.indeces.get()[i] = t2[i];
+               nmData.indeces[i] = levelWO->getModel()->getModelDataShared()->getCompositeIndexList()[i];
            }
 
 			//Custom behavior after nm is built, used to call the setup for crowd, could be replaced for a unique solution.
            afmesh.onNavMeshBuilt = [&] {SetUpDetourCrowd(); };
-           afmesh.CreateNavSurface(nmData);
+           AftrNavMesh::AftrToRC(temp->getBoundingBox().getMax(), afmesh.bmax);
+           AftrNavMesh::AftrToRC(temp->getBoundingBox().getMin(), afmesh.bmin);
 
-           WO* navMeshVis = WO::New();
-           navMeshVis->setPosition(Vector(afmesh.m_navMesh->getParams()->orig[0], afmesh.m_navMesh->getParams()->orig[1], afmesh.m_navMesh->getParams()->orig[2]));
+           afmesh.CreateNavSurface(navMesh, levelWO->getPosition());
+			
 
 			//ModelMeshRenderData data* = new ModelMeshRenderData()
        });
 }
-
+ 
 
 void GLViewNat22_Final::SetUpDetourCrowd()
 {
     //setup crowd st/ we can use actors on the navmesh
 
+    float radius = .25f;
+
     crowdManger = new dtCrowd();
-    crowdManger->init(30, 3, afmesh.m_navMesh);
-    dtObstacleAvoidanceParams p;
-    
-    crowdManger->setObstacleAvoidanceParams(0, &p); 
-    dtCrowdAgentParams agentParams;
-    agentParams.maxSpeed = 1.25f;
-    agentParams.maxAcceleration = .5f;
-    
-    WODetourActor *dtA = WODetourActor::New(crowdManger, Vector(0, 0, 0), agentParams);
+    dtNavMesh* nav = afmesh.m_navMesh;
+
+    crowdManger->init(128, radius, nav);
+
+    //crowdManger->getEditableFilter(0)->setExcludeFlags(SAMPLE_POLYFLAGS_DISABLED);
+
+    dtObstacleAvoidanceParams params;
+    memcpy(&params, crowdManger->getObstacleAvoidanceParams(0), sizeof(dtObstacleAvoidanceParams));
+
+    // Low (11)
+    params.velBias = 0.5f;
+    params.adaptiveDivs = 5;
+    params.adaptiveRings = 2;
+    params.adaptiveDepth = 1;
+    crowdManger->setObstacleAvoidanceParams(0, &params);
+
+    dtA = WODetourActor::New(crowdManger, Vector(0, 0, 0));
     worldLst->push_back(dtA);
-    isCrowdInitialized = true;
+
 }

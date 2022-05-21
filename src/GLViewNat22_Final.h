@@ -6,7 +6,8 @@
 
 namespace Aftr
 {
-   class Camera;
+	class WODetourActor;
+	class Camera;
 
 /**
    \class GLViewNat22_Final
@@ -46,6 +47,8 @@ protected:
    AftrNavMesh afmesh;
    time_t lastFrameTime;
    bool isCrowdInitialized = false;
+
+   WODetourActor* dtA;
 };
 
 /** \} */

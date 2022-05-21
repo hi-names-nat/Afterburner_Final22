@@ -11,15 +11,18 @@ namespace Aftr {
         
         void onUpdateWO() override;
 
-        void setDestination(Vector position);
-
-        int agentIndex;
-        dtCrowdAgentParams agentParams;
-
         dtCrowd* myCrowd;
 
+        float radius = .5f, maxSpeed = 3.5f, maxAcceleration = 8.0f, height = 2.0f;
+        unsigned char updateFlags = 0;
+
     public:
-        static WODetourActor* New(dtCrowd* crowd, Vector startPosition, dtCrowdAgentParams params);
+        void setDestination(Vector position);
+
+
+        static WODetourActor* New(dtCrowd* crowd, Vector startPosition);
+        int agentIndex;
+
 
     };
 }

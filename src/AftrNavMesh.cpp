@@ -2,13 +2,17 @@
 
 #include <DebugDraw.h>
 #include <RecastDebugDraw.h>
+#include <RecastDump.h>
+#include "InputGeom.h"
+#include "ChunkyTriMesh.h"
+#include "MeshLoaderObj.h"
 
 
 AftrNavMesh::AftrNavMesh()
 {
 	NavConfig = rcConfig();
-	NavContext = rcContext();
-
+	NavContext = new rcContext();
+	m_navQuery = new dtNavMeshQuery();
 }
 
 AftrNavMesh::~AftrNavMesh()
@@ -20,124 +24,201 @@ AftrNavMesh::~AftrNavMesh()
 	rcFreePolyMeshDetail(pmd);
 }	
 
-void AftrNavMesh::CreateNavSurface(navData data)
+bool AftrNavMesh::CreateNavSurface(std::string model, Aftr::Vector position)
 {
-	//Something is wrong here I think
-	float* bmax = new float[data.numVerts], * bmin = new float[data.numVerts];
-	rcCalcBounds(data.verts.get(), data.numVerts / 3, bmin, bmax);
 
-	numTris = data.numindeces / 3;
+	InputGeom geo = InputGeom();
 
-	if (!bmax || !bmin) return;
+	geo.load(NavContext, model);
 
-	tris = new int[numTris * 3];
-	for (int i = 0; i < numTris; i++)
-	{
-		tris[i * 3] = data.indeces.get()[i * 3];
-		tris[i * 3 + 1] = data.indeces.get()[i * 3 + 1];
-		tris[i * 3 + 2] = data.indeces.get()[i * 3 + 2];
-	}
+	const float* bmin = geo.getNavMeshBoundsMin();
+	const float* bmax = geo.getNavMeshBoundsMax();
+	const float* verts = geo.getMesh()->getVerts();
+	const int nverts = geo.getMesh()->getVertCount();
+	const int* tris = geo.getMesh()->getTris();
+	const int ntris = geo.getMesh()->getTriCount();
 
-	//RC Config
-	{
-		memset(&NavConfig, 0, sizeof(NavConfig));
+	if (!bmax || !bmin) return false;
 
-		rcVcopy(NavConfig.bmax, bmax);
-		rcVcopy(NavConfig.bmin, bmin);
-
-		NavConfig.cs = cellSize;
-		NavConfig.ch = cellHeight;
-		NavConfig.walkableSlopeAngle = agentMaxSlope;
-		NavConfig.walkableHeight = (int)std::ceilf(agentHeight / NavConfig.ch);
-		NavConfig.walkableClimb = (int)std::ceilf(agentMaxClimb / NavConfig.ch);
-		NavConfig.walkableRadius = (int)std::ceilf(agentRadius / NavConfig.cs);
-		NavConfig.maxEdgeLen = maxEdgeLen / cellSize;
-		NavConfig.maxSimplificationError = MaxError;
-		NavConfig.minRegionArea = (int)rcSqr(MinRegionSZ);
-		NavConfig.mergeRegionArea = (int)rcSqr(MergeRegionArea);	// Note: area = size*size
-		NavConfig.maxVertsPerPoly = (int)MaxVertsPerPoly;
-		NavConfig.detailSampleDist = detailSampleDist < 0.9f ? 0 : cellSize * detailSampleDist;
-		NavConfig.detailSampleMaxError = cellHeight * maxSampleError;
-		rcCalcGridSize(NavConfig.bmin, NavConfig.bmax, NavConfig.cs, &NavConfig.width, &NavConfig.height);
-		if (NavConfig.height == 0) NavConfig.height++;
-	}
-	NavContext.resetTimers();
-
-	NavContext.startTimer(RC_TIMER_TOTAL);
-
-	NavContext.log(RC_LOG_PROGRESS, "Building navigation:");
-	NavContext.log(RC_LOG_PROGRESS, " - %d x %d cells", NavConfig.width, NavConfig.height);
-	NavContext.log(RC_LOG_PROGRESS, " - %.1fK verts, %.1fK tris", data.numVerts / 1000.0f, numTris / 1000.0f);
-
-	m_navQuery = dtAllocNavMeshQuery();
-	m_crowd = dtAllocCrowd();
+	memset(&NavConfig, 0, sizeof(NavConfig));
+	rcVcopy(NavConfig.bmin, bmin);
+	rcVcopy(NavConfig.bmax, bmax);
+	NavConfig.cs = m_cellSize;
+	NavConfig.ch = m_cellHeight;
+	NavConfig.walkableSlopeAngle = m_agentMaxSlope;
+	NavConfig.walkableHeight = (int)ceilf(m_agentHeight / NavConfig.ch);
+	NavConfig.walkableClimb = (int)floorf(m_agentMaxClimb / NavConfig.ch);
+	NavConfig.walkableRadius = (int)ceilf(m_agentRadius / NavConfig.cs);
+	NavConfig.maxEdgeLen = (int)(m_edgeMaxLen / m_cellSize);
+	NavConfig.maxSimplificationError = m_edgeMaxError;
+	NavConfig.minRegionArea = (int)rcSqr(m_regionMinSize);		// Note: area = size*size
+	NavConfig.mergeRegionArea = (int)rcSqr(m_regionMergeSize);	// Note: area = size*size
+	NavConfig.maxVertsPerPoly = (int)m_vertsPerPoly;
+	NavConfig.detailSampleDist = m_detailSampleDist < 0.9f ? 0 : m_cellSize * m_detailSampleDist;
+	NavConfig.detailSampleMaxError = m_cellHeight * m_detailSampleMaxError;
+	rcCalcGridSize(NavConfig.bmin, NavConfig.bmax, NavConfig.cs, &NavConfig.width, &NavConfig.height);
 
 
-	heightfield = rcAllocHeightfield();
-	if (!heightfield) return;
-
-	if (!rcCreateHeightfield(&NavContext, *heightfield, NavConfig.width, NavConfig.height, NavConfig.bmin, NavConfig.bmax, NavConfig.cs, NavConfig.ch))
-	{
-		printf("failed to create heightfield");
-		return;
-	}
-
-	auto* triAreas = new unsigned char[numTris];
-	if (!triAreas) 
-	{
-		printf("failed to create compact heightfield");
-		return;
-	}
-	memset(triAreas, 0, numTris * sizeof(unsigned char));
-	rcMarkWalkableTriangles(&NavContext, NavConfig.walkableSlopeAngle, data.verts.get(), data.numVerts, tris, numTris, triAreas);
-	if (!rcRasterizeTriangles(&NavContext, data.verts.get(), data.numVerts / 3, tris, triAreas, numTris, *heightfield, NavConfig.walkableClimb)) return;
 	
 
+
+
+	// Reset build times gathering.
+	NavContext->resetTimers();
+
+	// Start the build process.	
+	NavContext->startTimer(RC_TIMER_TOTAL);
+
+	NavContext->log(RC_LOG_PROGRESS, "Building navigation:");
+	NavContext->log(RC_LOG_PROGRESS, " - %d x %d cells", NavConfig.width, NavConfig.height);
+	NavContext->log(RC_LOG_PROGRESS, " - %.1fK verts, %.1fK tris", nverts / 1000.0f, numTris / 1000.0f);
+
+
+	//Rasterize polygon soup
+	heightfield = rcAllocHeightfield();
+	if (!heightfield)
+	{
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Out of memory 'solid'.");
+		return false;
+	}
+	if (!rcCreateHeightfield(NavContext, *heightfield, NavConfig.width, NavConfig.height, NavConfig.bmin, NavConfig.bmax, NavConfig.cs, NavConfig.ch))
+	{
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not create solid heightfield.");
+		return false;
+	}
+
+	m_triareas = new unsigned char[ntris];
+	if (!m_triareas)
+	{
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Out of memory 'm_triareas' (%d).", numTris);
+		return false;
+	}
+
+	// Find triangles which are walkable based on their slope and rasterize them.
+// If your input data is multiple meshes, you can transform them here, calculate
+// the are type for each of the meshes and rasterize them.
+	memset(m_triareas, 0, ntris * sizeof(unsigned char));
+	rcMarkWalkableTriangles(NavContext, NavConfig.walkableSlopeAngle, verts, nverts, tris, ntris, m_triareas);
+	if (!rcRasterizeTriangles(NavContext, verts, nverts, tris, m_triareas, ntris, *heightfield, NavConfig.walkableClimb))
+	{
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not rasterize triangles.");
+		return false;
+	}
+
+	if (m_filterLowHangingObstacles)
+		rcFilterLowHangingWalkableObstacles(NavContext, NavConfig.walkableClimb, *heightfield);
+	if (m_filterLedgeSpans)
+		rcFilterLedgeSpans(NavContext, NavConfig.walkableHeight, NavConfig.walkableClimb, *heightfield);
+	if (m_filterWalkableLowHeightSpans)
+		rcFilterWalkableLowHeightSpans(NavContext, NavConfig.walkableHeight, *heightfield);
+		
 	ch = rcAllocCompactHeightfield();
-	if (!ch) return;
-	if (!rcBuildCompactHeightfield(&NavContext, NavConfig.walkableHeight, NavConfig.walkableClimb, *heightfield, *ch))
+	if (!ch)
 	{
-		printf("failed to create compact heightfield");
-		return;
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Out of memory 'chf'.");
+		return false;
+	}
+	if (!rcBuildCompactHeightfield(NavContext, NavConfig.walkableHeight, NavConfig.walkableClimb, *heightfield, *ch))
+	{
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not build compact data.");
+		return false;
 	}
 
-	rcErodeWalkableArea(&NavContext, NavConfig.walkableRadius, *ch);
-
-	if (!rcBuildDistanceField(&NavContext, *ch))
+	if (!rcErodeWalkableArea(NavContext, NavConfig.walkableRadius, *ch))
 	{
-		NavContext.log(RC_LOG_ERROR, "buildNavigation: Could not build distance field.");
-		return;
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not erode.");
+		return false;
 	}
 
-	if (!rcBuildRegions(&NavContext, *ch, 0, NavConfig.minRegionArea, NavConfig.mergeRegionArea))
+	const ConvexVolume* vols = geo.getConvexVolumes(); /*would need to get convex volumes*/;
+	for (int i = 0; i < -1 /*m_geom->getConvexVolumeCount()*/; ++i) /*would need to get convex volumes num*/
+		rcMarkConvexPolyArea(NavContext, vols[i].verts, vols[i].nverts, vols[i].hmin, vols[i].hmax, (unsigned char)vols[i].area, *ch);
+
+	if (m_partitionType == SAMPLE_PARTITION_WATERSHED)
 	{
-		NavContext.log(RC_LOG_ERROR, "buildNavigation: Could not build watershed regions.");
-		return;
+		// Prepare for region partitioning, by calculating distance field along the walkable surface.
+		if (!rcBuildDistanceField(NavContext, *ch))
+		{
+			NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not build distance field.");
+			return false;
+		}
+
+		// Partition the walkable surface into simple regions without holes.
+		if (!rcBuildRegions(NavContext, *ch, 0, NavConfig.minRegionArea, NavConfig.mergeRegionArea))
+		{
+			NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not build watershed regions.");
+			return false;
+		}
+	}
+	else if (m_partitionType == SAMPLE_PARTITION_MONOTONE)
+	{
+		// Partition the walkable surface into simple regions without holes.
+		// Monotone partitioning does not need distancefield.
+		if (!rcBuildRegionsMonotone(NavContext, *ch, 0, NavConfig.minRegionArea, NavConfig.mergeRegionArea))
+		{
+			NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not build monotone regions.");
+			return false;
+		}
+	}
+	else // SAMPLE_PARTITION_LAYERS
+	{
+		// Partition the walkable surface into simple regions without holes.
+		if (!rcBuildLayerRegions(NavContext, *ch, 0, NavConfig.minRegionArea))
+		{
+			NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not build layer regions.");
+			return false;
+		}
 	}
 
 	contourset = rcAllocContourSet();
-	if (!contourset) return;
-	if (!rcBuildContours(&NavContext, *ch, NavConfig.maxSimplificationError, NavConfig.maxEdgeLen, *contourset))
+	if (!contourset)
 	{
-		printf("failed to create contours");
-		return;
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Out of memory 'cset'.");
+		return false;
+	}
+	if (!rcBuildContours(NavContext, *ch, NavConfig.maxSimplificationError, NavConfig.maxEdgeLen, *contourset))
+	{
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not create contours.");
+		return false;
 	}
 
+	//
+	// Step 6. Build polygons mesh from contours.
+	//
+
+	// Build polygon navmesh from the contours.
 	pm = rcAllocPolyMesh();
-	if (!pm) return;
-	if (!rcBuildPolyMesh(&NavContext, *contourset, NavConfig.maxVertsPerPoly, *pm))
+	if (!pm)
 	{
-		printf("failed to create poly mesh");
-		return;
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Out of memory 'pmesh'.");
+		return false;
 	}
+	if (!rcBuildPolyMesh(NavContext, *contourset, NavConfig.maxVertsPerPoly, *pm))
+	{
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not triangulate contours.");
+		return false;
+	}
+
+	//
+	// Step 7. Create detail mesh which allows to access approximate height on each polygon.
+	//
 
 	pmd = rcAllocPolyMeshDetail();
-	if (!pmd) return;
-	if (!rcBuildPolyMeshDetail(&NavContext, *pm, *ch, NavConfig.detailSampleDist, NavConfig.detailSampleMaxError, *pmd))
+	if (!pmd)
 	{
-		printf("failed to create poly mesh detail");
-		return;
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Out of memory 'pmdtl'.");
+		return false;
 	}
+
+	if (!rcBuildPolyMeshDetail(NavContext, *pm, *ch, NavConfig.detailSampleDist, NavConfig.detailSampleMaxError, *pmd))
+	{
+		NavContext->log(RC_LOG_ERROR, "buildNavigation: Could not build detail mesh.");
+		return false;
+	}
+
+	
+
+	printf("Recast has been built...\n");
 
 	dtNavMeshCreateParams params;
 	memset(&params, 0, sizeof(params));
@@ -150,61 +231,64 @@ void AftrNavMesh::CreateNavSurface(navData data)
 	params.nvp = pm->nvp;
 	params.detailMeshes = pmd->meshes;
 	params.detailVerts = pmd->verts;
-	params.detailVertsCount = pmd->nverts;
+	params.detailVertsCount = pm->nverts;
 	params.detailTris = pmd->tris;
 	params.detailTriCount = pmd->ntris;
-	params.offMeshConVerts = nullptr;
-	params.offMeshConRad = nullptr;
-	params.offMeshConDir = nullptr;
-	params.offMeshConAreas = nullptr;
-	params.offMeshConFlags = nullptr;
-	params.offMeshConUserID = nullptr;
-	params.offMeshConCount = 0;
-	params.walkableHeight = agentHeight;
-	params.walkableRadius = agentRadius;
-	params.walkableClimb = agentMaxClimb;
+	params.walkableHeight = m_agentHeight;
+	params.walkableRadius = m_agentRadius;
+	params.walkableClimb = m_agentMaxClimb;
 	rcVcopy(params.bmin, pm->bmin);
 	rcVcopy(params.bmax, pm->bmax);
 	params.cs = NavConfig.cs;
 	params.ch = NavConfig.ch;
 	params.buildBvTree = true;
 
-	unsigned char *nData = new unsigned char;
-	int nDataSz;
+	unsigned char* dtNavMeshData = 0;
+	int dtNavMeshDataSize = 0;
 
-	if (!dtCreateNavMeshData(&params, &nData, &nDataSz))
+	if (!dtCreateNavMeshData(&params, &dtNavMeshData, &dtNavMeshDataSize))
 	{
-		printf("Could not build Detour navmesh data.\n");
-		return;
+		NavContext->log(RC_LOG_ERROR, "Could not build Detour navmesh.");
+		return false;
 	}
 
 	m_navMesh = dtAllocNavMesh();
 	if (!m_navMesh)
 	{
-		dtFree(nData);
-		printf("Could not allocate Detour navmesh\n");
-		return;
+		dtFree(dtNavMeshData);
+		NavContext->log(RC_LOG_ERROR, "Could not create Detour navmesh");
+		return false;
 	}
 
 	dtStatus status;
 
-	status = m_navMesh->init(nData, nDataSz, DT_TILE_FREE_DATA);
+	status = m_navMesh->init(dtNavMeshData, dtNavMeshDataSize, DT_TILE_FREE_DATA);
 	if (dtStatusFailed(status))
 	{
-		dtFree(nData);
-		printf("Could not init Detour navmesh\n");
-		return;
+		dtFree(dtNavMeshData);
+		NavContext->log(RC_LOG_ERROR, "Could not init Detour navmesh");
+		return false;
 	}
+
 
 	status = m_navQuery->init(m_navMesh, 2048);
 	if (dtStatusFailed(status))
 	{
-		printf("Could not init Detour navmesh query\n");
-		return;
+		NavContext->log(RC_LOG_ERROR, "Could not init Detour navmesh query");
+		return false;
 	}
 
-	printf("Recast & Detour successfully built!\n");
+	NavContext->stopTimer(RC_TIMER_TOTAL);
 
-	
+	// Show performance stats.
+	duLogBuildTimes(*NavContext, NavContext->getAccumulatedTime(RC_TIMER_TOTAL));
+	NavContext->log(RC_LOG_PROGRESS, ">> Polymesh: %d vertices  %d polygons", pm->nverts, pm->npolys);
+
+	float m_totalBuildTimeMs;
+	m_totalBuildTimeMs = NavContext->getAccumulatedTime(RC_TIMER_TOTAL) / 1000.0f;
+
 	onNavMeshBuilt();
+
+	return true;
+
 }
